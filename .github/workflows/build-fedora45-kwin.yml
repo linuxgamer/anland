@@ -29,24 +29,26 @@ jobs:
             -e JOBS=4 \
             -e ANLAND_INSTALL=0 \
             -e ANLAND_LOCK_PACKAGES=0 \
-            -e BUILD_XWAYLAND=0 \
+            -e BUILD_XWAYLAND=1 \
             fedora:45 bash -euo pipefail -c '
               dnf install -y --setopt=install_weak_deps=False dnf-plugins-core
               dnf config-manager setopt fedora-source.enabled=1 updates-source.enabled=1
               dnf makecache >/dev/null
 
-              bash /src/producers/kde/Fedora45_v5/build.sh
+              status=0
+              bash /src/producers/kde/Fedora45_v5/build.sh || status=$?
 
-              echo "===== built packages ====="
-              ls -l /tmp/work/kwin
-              cp /tmp/work/kwin/*.rpm /build/
-              echo "===== copied ====="
+              echo "===== collecting whatever was built ====="
+              cp /tmp/work/kwin/*.rpm /build/ 2>/dev/null || true
+              cp /tmp/work/xwayland/*.rpm /build/ 2>/dev/null || true
               ls -l /build
+              exit "$status"
             '
 
       - name: Upload built packages
+        if: always()
         uses: actions/upload-artifact@v6
         with:
           name: anland-fedora45-kwin
           path: out/*.rpm
-          if-no-files-found: error
+          if-no-files-found: warn
