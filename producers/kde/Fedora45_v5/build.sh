@@ -184,7 +184,9 @@ build_pkg_rpm() {
     local artifact_dir="$WORKDIR/$src"
     mkdir -p "$artifact_dir" || die "cannot create artifact directory"
     for rpm_file in "${rpms[@]}"; do
-        rpm -K "$rpm_file" || die "RPM validation failed"
+        # CI containers cannot sign, so validate the payload digests and skip the
+        # signature check; unsigned packages would report "SIGNATURES NOT OK".
+        rpm --checksig --nosignature "$rpm_file" || die "RPM digest validation failed"
         cp "$rpm_file" "$topdir/" || die "RPM collection failed"
         cp "$rpm_file" "$artifact_dir/" || die "RPM artifact collection failed"
     done
