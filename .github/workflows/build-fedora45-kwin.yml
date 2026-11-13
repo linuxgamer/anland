@@ -1,0 +1,52 @@
+name: Build Fedora 45 KWin (Anland)
+
+# Builds the patched KWin for Fedora 45 using producers/kde/Fedora45_v5.
+# The recipe downloads Fedora 45's current KWin SRPM, applies kwin.patch and rebuilds it,
+# so the result tracks whatever KWin the distribution ships.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build patched KWin
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Build in a Fedora 45 container
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          chmod 777 out
+          docker run --rm --platform linux/arm64 \
+            -v "$PWD:/src:ro" \
+            -v "$PWD/out:/build" \
+            -e WORKDIR=/tmp/work \
+            -e JOBS=4 \
+            -e ANLAND_INSTALL=0 \
+            -e ANLAND_LOCK_PACKAGES=0 \
+            -e BUILD_XWAYLAND=0 \
+            fedora:45 bash -euo pipefail -c '
+              dnf install -y --setopt=install_weak_deps=False dnf-plugins-core
+              dnf config-manager setopt fedora-source.enabled=1 updates-source.enabled=1
+              dnf makecache >/dev/null
+
+              bash /src/producers/kde/Fedora45_v5/build.sh
+
+              echo "===== built packages ====="
+              ls -l /tmp/work/kwin
+              cp /tmp/work/kwin/*.rpm /build/
+              echo "===== copied ====="
+              ls -l /build
+            '
+
+      - name: Upload built packages
+        uses: actions/upload-artifact@v6
+        with:
+          name: anland-fedora45-kwin
+          path: out/*.rpm
+          if-no-files-found: error
